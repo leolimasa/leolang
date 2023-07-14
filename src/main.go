@@ -2,8 +2,10 @@ package main
 
 import (
 	"bufio"
+	"fmt"
 	"io"
 	"regexp"
+	"strings"
 )
 
 type TokenType int
@@ -116,7 +118,7 @@ func (t *Lexer) detectIdentifier() (*Token, *LexerError) {
 		if err != nil {
 			return nil, err
 		}
-		if curRune == ' ' || curRune == '\n' || curRune == '\r' {
+		if curRune == ' ' || curRune == '\n' || curRune == '\r' || curRune == ')' {
 			t.rewind()
 			for _, op := range binOperators {
 				if op == value {
@@ -129,7 +131,6 @@ func (t *Lexer) detectIdentifier() (*Token, *LexerError) {
 				
 		}
 		value += string(curRune)
-
 	}
 }
 
@@ -166,6 +167,9 @@ func (t *Lexer) Next() (*Token, *LexerError) {
 	for {
 		curRune, err := t.readRune()
 		if err != nil {
+			if err.Error == io.EOF {
+				return nil, nil
+			}
 			return nil, err
 		}
 
@@ -173,6 +177,7 @@ func (t *Lexer) Next() (*Token, *LexerError) {
 		// TODO
 
 		// Detect indent at the beginning of the line
+		// TODO indent is broken
 		if (t.col == 1 && curRune == ' ') {
 			indentToken, err := t.detectIndent()
 			if err != nil {
@@ -209,13 +214,25 @@ func (t *Lexer) Next() (*Token, *LexerError) {
 			if err != nil {
 				return nil, err
 			}
+			// TODO this can probably be handled with a rewind
+			identifierToken.Value = string(curRune) + identifierToken.Value
 			return identifierToken, nil
-
 		}
 	}
 }
 
 
 func main() {
-	
+	program := `my-fun = fn (a b)
+	        print "hello world"
+	        if (a > b) True False`	
+
+	lexer := NewLexer(strings.NewReader(program))
+	for {
+		t, err := lexer.Next()
+		if err != nil {
+			panic(err.Error)
+		}
+		fmt.Printf("%d:%d %d %s \n", t.Line, t.Col, t.Type, t.Value)	
+	}
 }
