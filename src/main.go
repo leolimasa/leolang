@@ -3,10 +3,17 @@ package main
 import (
 	"bufio"
 	"io"
-	"unicode/utf8"
+	"regexp"
 )
 
 type TokenType int
+
+var numberRegex *regexp.Regexp = regexp.MustCompile("[+-]?([0-9]*[.])?[0-9]+")
+var binOperators = []string{
+	"+", "-", "*", "/", "**", "%",
+	"and", "or",
+	"==", "!=", ">", "<", "<=", ">=",
+}
 
 const (
 	LeftParen TokenType = 1
@@ -16,89 +23,59 @@ const (
 	Number TokenType = 5
 	Indent TokenType = 6
 	Dedent TokenType = 7
-	Operator TokenType = 8
+	BinOperator TokenType = 8
 )
 
 type Token struct {
 	Type TokenType
 	Line int
-	Char int
+	Col int
 	Value string
 }
 
-type Tokenizer struct {
-	scanner bufio.Scanner
-	lineNum int
-	curLine []rune 
-	runePos int
-	charPos int
-	curRune rune
+type Lexer struct {
+	reader bufio.Reader
+	line int
+	col int
+	runeSize int
 	indentLevel int
-	isSpaceIndent bool
-	stop bool
+	numberRegex regexp.Regexp
 }
 
-type TokenizerError struct {
+type LexerError struct {
 	Line int
-	Char int
-	Value string
+	Col int
+	Error error
 }
 
-func NewTokenizer(reader io.Reader) Tokenizer {
-	return Tokenizer {
-		scanner: *bufio.NewScanner(reader),
-		lineNum: 0,
-		curLine: []rune{},
-		curRune: 0,
+func NewLexer(reader io.Reader) Lexer {
+	return Lexer {
+		reader: *bufio.NewReader(reader),
+		line: 1,
+		col: 0,
 	}
 }
 
-func (t *Tokenizer) nextLine() error {
-	isErr := t.scanner.Scan()
-	if isErr {
-		t.stop = true
-		return t.scanner.Err()
-	}
-	t.curLine = []rune(t.scanner.Text())
-	t.lineNum++
-	t.runePos = 0
-	t.charPos = 0
-	return nil
-}
 
-func (t *Tokenizer) nextChar() bool {
-	// Reached EOL
-	if t.runePos >= len(t.curLine) {
-		return true 
-	}
-	t.curRune = t.curLine[t.runePos]
-	t.runePos++
-	t.charPos = 
-	return false
-}
-
-func (t *Tokenizer) rewind() {
-	if t.runePos == 0 {
-		return
-	}
-	t.runePos--
-}
-
-func (t *Tokenizer) newToken(tokentType TokenType, value string) Token {
+func (t *Lexer) newToken(tokentType TokenType, value string) Token {
 	return Token {
 		Type: tokentType,
-		Char: t.runePos,
-		Line: t.lineNum,
+		Col: t.col,
+		Line: t.line,
 		Value: value,
 	}
 }
 
-func (t *Tokenizer) detectIndent() (*Token, error) {
+func (t *Lexer) detectIndent() (*Token, *LexerError) {
 	level := 0
 	var tok Token
 	for {
-		isEol := t.nextChar()
-		if t.curRune != ' ' || isEol {
+		curRune, err := t.readRune()
+		if err != nil {
+			return nil, err
+		}
+
+		if curRune != ' ' {
 			t.rewind()
 			if level > t.indentLevel {
 				tok = t.newToken(Indent, "")
@@ -116,38 +93,87 @@ func (t *Tokenizer) detectIndent() (*Token, error) {
 	}
 }
 
-func (t *Tokenizer) detectString() (*Token, error) {
+func (t *Lexer) detectString() (*Token, *LexerError) {
 	value := ""
 	for {
-		isEol := t.nextChar()
-		if isEol {
-			return nil, "Unterminated string"
+		curRune, err := t.readRune()
+		if err != nil {
+			return nil, err
 		}
-		if t.curRune == '"' && t.prevRune() != '\\' {
-
+		// TODO parse escape characters
+		if curRune == '"' {
+			tok := t.newToken(String, value)
+			return &tok, nil
 		}
+		value += string(curRune)
 	}
 }
 
-// Next returns the next token, or nil for end of stream.
-func (t *Tokenizer) Next() (*Token, error) {
-	for !t.stop {
-		// Read next line
-		if t.runePos >= len(t.curLine) {
-			err := t.nextLine()
-			if err != nil {
-				return nil, err
-			}
+func (t *Lexer) detectIdentifier() (*Token, *LexerError) {
+	value := ""
+	for {
+		curRune, err := t.readRune()
+		if err != nil {
+			return nil, err
 		}
+		if curRune == ' ' || curRune == '\n' || curRune == '\r' {
+			t.rewind()
+			for _, op := range binOperators {
+				if op == value {
+					tok := t.newToken(BinOperator, value)
+					return &tok, nil
+				}
+			}
+			tok := t.newToken(Identifier, value)
+			return &tok, nil
+				
+		}
+		value += string(curRune)
 
-		// Read next character
-		t.nextChar()
+	}
+}
+
+func (t *Lexer) newError(err error) LexerError {
+	return LexerError {
+		Line: t.line,
+		Col: t.col,
+		Error: err,
+	}
+}
+
+func (t *Lexer) readRune() (rune, *LexerError) {
+	curRune, size, err := t.reader.ReadRune()
+	t.col += size
+	if err != nil {
+		tokError := t.newError(err)
+		return '0', &tokError
+	}
+	return curRune, nil
+}
+
+func (t *Lexer) rewind() *LexerError {
+	err := t.reader.UnreadRune()
+	if err != nil {
+		tokError := t.newError(err)
+		return &tokError
+	}
+	t.col -= t.runeSize
+	return nil
+}
+
+// Next returns the next token, or nil for end of stream.
+func (t *Lexer) Next() (*Token, *LexerError) {
+	for {
+		curRune, err := t.readRune()
+		if err != nil {
+			return nil, err
+		}
 
 		// Do not allow tabs as indentation
 		// TODO
 
 		// Detect indent at the beginning of the line
-		if (t.runePos == 1 && t.curRune == ' ') {
+		if (t.col == 1 && curRune == ' ') {
 			indentToken, err := t.detectIndent()
 			if err != nil {
 				return nil, err
@@ -158,26 +184,34 @@ func (t *Tokenizer) Next() (*Token, error) {
 		}
 
 		// Detect parens
-		if t.curRune == '(' {
+		if curRune == '(' {
 			token := t.newToken(LeftParen, "")
 			return &token, nil
 		}
-		if t.curRune == ')' {
+		if curRune == ')' {
 			token := t.newToken(RightParen, "")
 			return &token, nil
 		}
 
 		// Detect string
-		if t.curRune == '"' {
-			stringToken := t.detectString()
+		if curRune == '"' {
+			stringToken, err := t.detectString()
+			if err != nil {
+				return nil, err
+			}
+			return stringToken, nil
 		}
 
 		// Detect identifier (anything that is not a space and is not one of the tokens above). 
 		// Convert it to either number or operator, depending on its value.
-		if t.curRune != ' ' {
-			identifierToken := t.detectIdentifier()
-		}
+		if curRune != ' ' {
+			identifierToken, err := t.detectIdentifier()
+			if err != nil {
+				return nil, err
+			}
+			return identifierToken, nil
 
+		}
 	}
 }
 
