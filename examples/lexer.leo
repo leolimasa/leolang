@@ -2,7 +2,7 @@ import "../test.leo" tst
 
 type-alias Name String
 
-union TokenType
+type TokenType
     LeftParen
     RightParen
     Identifier
@@ -13,7 +13,7 @@ union TokenType
     BinOperator
     
 
-union Token
+type Token
     Token
         type TokenType
         line Int
@@ -21,7 +21,7 @@ union Token
         value Int
 
 
-union Lexer
+type Lexer
     Lexer
         line Int
 	col Int
@@ -35,7 +35,6 @@ new-lexer = fn (reader)
         reader (bufio.new-reader reader)
 	line 1
 	col 0
-
 
 :: Fn Lexer TokenType String Token
 new-token = fn (lexer token-type value)

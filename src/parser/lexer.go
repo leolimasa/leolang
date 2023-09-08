@@ -1,5 +1,14 @@
 package parser 
 
+/**
+TODO
+- Add DEDENT for every dedent level
+- Add LineEnd for line ends
+- Add number parsing
+- Add string escaping
+- Multiline strings
+**/
+
 import (
 	"bufio"
 	"io"
@@ -12,7 +21,7 @@ var numberRegex *regexp.Regexp = regexp.MustCompile("[+-]?([0-9]*[.])?[0-9]+")
 
 var binOperators = []string{
 	"+", "-", "*", "/", "**", "%",
-	"and", "or",
+	"and", "or", "not",
 	"==", "!=", ">", "<", "<=", ">=", 
 	"=", ":=",
 }
@@ -46,11 +55,6 @@ type Lexer struct {
 	skipNextRead bool
 }
 
-type LexerError struct {
-	Line int
-	Col int
-	Error error
-}
 
 func NewLexer(reader io.Reader) Lexer {
 	return Lexer {
@@ -72,7 +76,7 @@ func (t *Lexer) newToken(tokentType TokenType, value string) Token {
 }
 
 // detectIndent returns a indent or dedent token.
-func (l *Lexer) detectIndent() (*Token, *LexerError) {
+func (l *Lexer) detectIndent() (*Token, *ParserError) {
 	level := 0
 	var tok Token
 	for {
@@ -87,6 +91,9 @@ func (l *Lexer) detectIndent() (*Token, *LexerError) {
 		}
 
 		// Check if we reached the end of the indentation
+		// TODO emit DEDENTS according to how many levels were
+		// dedented
+		// can probably use a indent stack
 		if l.curRune != ' ' {
 			l.skipNextRead = true
 			if level > l.indentLevel {
@@ -105,7 +112,7 @@ func (l *Lexer) detectIndent() (*Token, *LexerError) {
 	}
 }
 
-func (l *Lexer) detectString() (*Token, *LexerError) {
+func (l *Lexer) detectString() (*Token, *ParserError) {
 	value := ""
 	for {
 		err := l.readRune()
@@ -121,7 +128,7 @@ func (l *Lexer) detectString() (*Token, *LexerError) {
 	}
 }
 
-func (l *Lexer) detectIdentifier() (*Token, *LexerError) {
+func (l *Lexer) detectIdentifier() (*Token, *ParserError) {
 	value := string(l.curRune)
 	for {
 		// Check if we're done reading the identifier
@@ -155,15 +162,15 @@ func (l *Lexer) detectIdentifier() (*Token, *LexerError) {
 	}
 }
 
-func (l *Lexer) newError(err error) LexerError {
-	return LexerError {
+func (l *Lexer) newError(err error) ParserError {
+	return ParserError {
 		Line: l.line,
 		Col: l.col,
 		Error: err,
 	}
 }
 
-func (l *Lexer) readRune() *LexerError {
+func (l *Lexer) readRune() *ParserError {
 	if l.skipNextRead {
 		l.skipNextRead = false
 		return nil
@@ -179,7 +186,7 @@ func (l *Lexer) readRune() *LexerError {
 }
 
 // Next returns the next token, or nil for end of stream.
-func (l *Lexer) Next() (*Token, *LexerError) {
+func (l *Lexer) Next() (*Token, *ParserError) {
 	for {
 		err := l.readRune()
 
