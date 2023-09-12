@@ -35,6 +35,7 @@ const (
 	Indent TokenType = 6
 	Dedent TokenType = 7
 	BinOperator TokenType = 8
+	LineEnd TokenType = 9
 )
 
 type Token struct {
@@ -97,6 +98,7 @@ func (l *Lexer) detectIndent() (*Token, *ParserError) {
 
 		// Emtpy line. Ignore.
 		if l.curRune == '\n' {
+			l.line++
 			return nil, nil
 		}
 
@@ -231,7 +233,9 @@ func (l *Lexer) Next() (*Token, *ParserError) {
 			if indentToken != nil {
 				return indentToken, nil
 			}
-			continue
+			token := l.newToken(LineEnd, nil)
+			return &token, nil
+			//continue
 		}
 
 		// Detect parens

@@ -14,6 +14,7 @@ func TestLexer(t *testing.T) {
     map
         a b
     some-call
+    line-ends-here
 dedented-all-the-way
     indent-one-level
       indent-two-levels
@@ -59,8 +60,12 @@ dedent-again`
 	assert.Equal(t, "hello world", token.Value)
 
 	token, _ = lexer.Next()
+	assert.Equal(t, LineEnd, token.Type)
+
+	token, _ = lexer.Next()
 	assert.Equal(t, Identifier, token.Type)
 	assert.Equal(t, "map", token.Value)
+	assert.Equal(t, 4, token.Line)
 
 	token, _ = lexer.Next()
 	assert.Equal(t, Indent, token.Type)
@@ -79,6 +84,11 @@ dedent-again`
 	token, _ = lexer.Next()
 	assert.Equal(t, Identifier, token.Type)
 	assert.Equal(t, "some-call", token.Value)
+
+	token, _ = lexer.Next()
+	assert.Equal(t, LineEnd, token.Type)
+
+	lexer.Next() // line-ends-here
 
 	token, _ = lexer.Next() 
 	assert.Equal(t, Dedent, token.Type)
