@@ -2,9 +2,9 @@ package parser
 
 /**
 TODO
-- Add DEDENT for every dedent level
 - Add LineEnd for line ends
 - Add number parsing
+- Add hex and more complex primitives parsing
 - Add string escaping
 - Multiline strings
 **/
@@ -41,7 +41,7 @@ type Token struct {
 	Type TokenType
 	Line int
 	Col int // the column here is NOT the byte position, but rune pos
-	Value string
+	Value any
 }
 
 type Lexer struct {
@@ -50,9 +50,10 @@ type Lexer struct {
 	col int
 	curRune rune
 	runeSize int
-	indentLevel int
 	numberRegex regexp.Regexp
 	skipNextRead bool
+	indentStack []int
+	isEof bool
 }
 
 
@@ -62,23 +63,32 @@ func NewLexer(reader io.Reader) Lexer {
 		line: 1,
 		col: 0,
 		skipNextRead: false,
+		isEof: false,
 	}
 }
 
 
-func (t *Lexer) newToken(tokentType TokenType, value string) Token {
+func (l *Lexer) newToken(tokentType TokenType, value any) Token {
 	return Token {
 		Type: tokentType,
-		Col: t.col,
-		Line: t.line,
+		Col: l.col,
+		Line: l.line,
 		Value: value,
 	}
 }
 
+func (l *Lexer) getIndentLevel() int {
+	level := 0
+	for _, curLevel := range l.indentStack {
+		level += curLevel
+	}
+	return level
+}
+
 // detectIndent returns a indent or dedent token.
+// will return the same amount of dedents as there are levels dedented.
 func (l *Lexer) detectIndent() (*Token, *ParserError) {
 	level := 0
-	var tok Token
 	for {
 		err := l.readRune()
 		if err != nil {
@@ -91,19 +101,23 @@ func (l *Lexer) detectIndent() (*Token, *ParserError) {
 		}
 
 		// Check if we reached the end of the indentation
-		// TODO emit DEDENTS according to how many levels were
-		// dedented
-		// can probably use a indent stack
-		if l.curRune != ' ' {
+		if l.curRune != ' ' || l.isEof {
 			l.skipNextRead = true
-			if level > l.indentLevel {
-				tok = l.newToken(Indent, "")
-				l.indentLevel = level
+			indentLevel := l.getIndentLevel()
+			if level > indentLevel {
+				tok := l.newToken(Indent, 1)
+				l.indentStack = append(l.indentStack, level - indentLevel)
 				return &tok, nil
 			}
-			if level < l.indentLevel {
-				tok = l.newToken(Dedent, "")
-				l.indentLevel = level
+			if level < indentLevel {
+				// calculates dedent levels
+				dedents := 0
+				for l.getIndentLevel() > level {
+					dedents++
+					l.indentStack = l.indentStack[:len(l.indentStack) - 1]
+				}
+
+				tok := l.newToken(Dedent, dedents) 
 				return &tok, nil
 			}
 			return nil, nil
@@ -132,7 +146,7 @@ func (l *Lexer) detectIdentifier() (*Token, *ParserError) {
 	value := string(l.curRune)
 	for {
 		// Check if we're done reading the identifier
-		if l.curRune == ' ' || l.curRune == '\n' || l.curRune == '\r' || l.curRune == ')' {
+		if l.curRune == ' ' || l.curRune == '\n' || l.curRune == '\r' || l.curRune == ')' || l.isEof {
 
 			// We consumed the end character for the identifier, so make sure
 			// it gets processed on the following Next() call
@@ -171,6 +185,9 @@ func (l *Lexer) newError(err error) ParserError {
 }
 
 func (l *Lexer) readRune() *ParserError {
+	if l.isEof {
+		return nil
+	}
 	if l.skipNextRead {
 		l.skipNextRead = false
 		return nil
@@ -179,8 +196,12 @@ func (l *Lexer) readRune() *ParserError {
 	l.curRune = curRune
 	l.col++
 	if err != nil {
-		tokError := l.newError(err)
-		return &tokError
+		if err == io.EOF {
+			l.isEof = true
+		} else {
+			tokError := l.newError(err)
+			return &tokError
+		}
 	}
 	return nil
 }
@@ -190,11 +211,12 @@ func (l *Lexer) Next() (*Token, *ParserError) {
 	for {
 		err := l.readRune()
 
+		if l.isEof {
+			return nil, nil
+		}
+
 		// Check if we reached end of file
 		if err != nil {
-			if err.Error == io.EOF {
-				return nil, nil
-			}
 			return nil, err
 		}
 
