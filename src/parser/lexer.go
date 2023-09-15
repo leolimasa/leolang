@@ -199,6 +199,7 @@ func (l *Lexer) newError(err error) ParserError {
 func (l *Lexer) readRune() *ParserError {
 	if l.isEof {
 		return nil
+	}
 	
 	if l.skipNextRead {
 		l.skipNextRead = false
@@ -273,8 +274,66 @@ func (l *Lexer) Next() (*Token, *ParserError) {
 			identifierToken, err := l.detectIdentifier()
 			if err != nil {
 				return nil, err
-			}
+			} 
 			return identifierToken, nil
 		}
 	}
 }
+
+type LexerNoIndent struct {
+	lexer Lexer
+	tokenBuffer []*Token
+	nextIsOpenParen bool
+}
+
+func NewLexerNoIndent(lexer Lexer) LexerNoIndent {
+	return LexerNoIndent {
+		lexer: lexer,
+		nextIsOpenParen: false,
+	}
+}
+
+func (ln *LexerNoIndent) Next() (*Token, *ParserError) {
+	if len(ln.tokenBuffer) > 0 {
+		tok := ln.tokenBuffer[len(ln.tokenBuffer)-1]
+		ln.tokenBuffer = ln.tokenBuffer[:len(ln.tokenBuffer)-1]
+		return tok, nil
+	}
+	token, err := ln.lexer.Next()
+	if err != nil {
+		return nil, err
+	}
+	if token == nil {
+		return nil, nil
+	}
+	if ln.nextIsOpenParen {
+		tok := ln.lexer.newToken(LeftParen, nil)
+		ln.nextIsOpenParen = false
+		ln.tokenBuffer = append(ln.tokenBuffer, token)
+		return &tok, nil
+	}
+	if token.Type == LineEnd {
+		tok := ln.lexer.newToken(RightParen, nil)
+		ln.nextIsOpenParen = true
+		return &tok, nil
+	}
+
+	if token.Type == Indent {
+		ln.nextIsOpenParen = true
+		return ln.Next()
+	}
+	if token.Type == Dedent {
+		// we remove one dedent because the first one will
+		// be emitted right away.
+		dedents := token.Value.(int) - 1
+		for i := 0; i < dedents; i++ {
+			tok := ln.lexer.newToken(RightParen, nil)
+			ln.tokenBuffer = append(ln.tokenBuffer, &tok)
+		}
+		tok := ln.lexer.newToken(RightParen, nil)
+		return &tok, nil
+	}
+	return token, nil
+}
+
+
