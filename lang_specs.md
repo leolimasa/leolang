@@ -52,11 +52,21 @@ myfun = fn (a b)
 
 ## IF statements
 
+Single line:
+
+```
+if (a > b) a else b
+```
+
+Multi line:
+
 ```
 if (a > b)
-  "Statement is true"
-  "Statement is false"
+    a
+else
+    b
 ```
+
 
 ## Types
 

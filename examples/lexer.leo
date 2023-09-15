@@ -74,6 +74,7 @@ operators = list
     "==" "!=" ">" "<" "<=" ">="
     "=" "v="
 
+
 :: Fn io.Reader Lexer
 new-lexer = fn (reader)
     Lexer
@@ -83,6 +84,7 @@ new-lexer = fn (reader)
 	skip-next-read False
 	is-eof False
 
+
 :: Fn Lexer Token String TokenPos
 new-token-pos = fn (lexer token value)
     Token
@@ -90,7 +92,9 @@ new-token-pos = fn (lexer token value)
 	line lexer.line
 	col lexer.col
 
+
 get-indent-level = fn (indent-stack) (reduce (fn-ref +) indent-stack)
+
 
 calculate-dedent = fn (indent-stack level dedents)
     if (get-indent-level indent-stack <= level)
@@ -120,13 +124,14 @@ detect-indent = fn (lexer level)
 
 	if (level < indent-level)
 	    dedents = calculate-dedent lexer.indent-stack 0
+	    return (Ok (tuple (Dedent dedents) lexer))
 
     detect-indent lexer (level + 1)
 	    
     
 process-character = fn (lexer)
     rune v= unwrap (lexer reader read-rune)
-    if (rune == '\n')
+    if rune == '\n' then
     	lexer col = 0
 	lexer line = (lexer line) + 1
 
@@ -140,3 +145,13 @@ next = fn (lexer)
     	case None
 	    next lexer
     	
+
+LexerNoIndent = struct
+    lexer Lexer
+    token-buffer (List Token)
+    next-is-open-paren Bool
+
+
+next-no-indent = fn (lexer-ni)
+    if ((lexer-ni token-buffer) len > 0)
+
