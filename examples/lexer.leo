@@ -2,23 +2,26 @@
 # Std library
 # ----------------------------------------
 
-Sizeable = trait T
+Length = trait T
     len (Fn T Int)
 
-Wrappable = trait T V
+Wrap = trait T V
     wrap (Fn V T)
 
-Unwrappable = trait T V
+Unwrap = trait T V
     unwrap (Fn T (Fn V V))
 
-BareUnwrappable = trait T V
+BareUnwrap = trait T V
     bare-unwrap (Fn T (Fn V T))
 
-Result = generic-type (K E)
-    Ok K
-    Error E
+Bool = enum False True
 
-implement Unwrappable Result
+Result = generic (K E)
+    enum
+	Ok K
+	Error E
+
+implement Unwrap Result
     unwrap (value cb)
         case value
 	    Ok value
@@ -26,7 +29,7 @@ implement Unwrappable Result
 	    Err err
 	        err
 
-implement BareUnwrappable Result
+implement BareUnwrap Result
     bare-unwrap (value cb)
         case value
 	    Ok value
@@ -65,11 +68,6 @@ Lexer = struct
     is-eof Bool
 
 
-# Example of generic type
-SomeGenericType = generic T
-    type
-	value T
-
 operators = list
     "+" "-" "*" "/" "**" "%"
     "and" "or" "not"
@@ -97,7 +95,7 @@ get-indent-level = fn (indent-stack) (reduce (fn-ref +) indent-stack)
 calculate-dedent = fn (indent-stack level dedents)
     if (get-indent-level indent-stack <= level)
         return (tuple indent-stack level)
-    
+    calculate-dedent (indent-stack 0 -1) level (dedents + 1)
 
 
 detect-indent = fn (lexer level)
@@ -106,7 +104,7 @@ detect-indent = fn (lexer level)
     # Empty line. Ignore.
     if (lexer cur-rune == '\n')
         lexer line = lexer line + 1
-        return (Ok (None lexer))
+        return (Ok (tuple None lexer))
 
     # Check if we reached the end of the indentation
     if (lexer cur-rune != ' ' or lexer is-eof)
@@ -118,7 +116,7 @@ detect-indent = fn (lexer level)
 	    lexer indent-stack = append 
 	    	lexer indent-stack 
 		level - indent-level
-	    return (Ok ((Indent 1) lexer))
+	    return (Ok (tuple (Indent 1) lexer))
 
 	if (level < indent-level)
 	    dedents = calculate-dedent lexer.indent-stack 0
@@ -126,11 +124,6 @@ detect-indent = fn (lexer level)
     detect-indent lexer (level + 1)
 	    
     
-
-:: Fn Lexer 
-    Result 
-        Optional Token
-        LexerError
 process-character = fn (lexer)
     rune v= unwrap (lexer reader read-rune)
     if (rune == '\n')
@@ -147,6 +140,3 @@ next = fn (lexer)
     	case None
 	    next lexer
     	
-     
-
-
