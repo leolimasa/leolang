@@ -1,9 +1,7 @@
-package parser 
+package parser
 
 /**
 TODO
-- Add LineEnd for line ends
-- Add number parsing
 - Add hex and more complex primitives parsing
 - Add string escaping
 - Multiline strings
@@ -17,63 +15,63 @@ import (
 
 type TokenType int
 
-var numberRegex *regexp.Regexp = regexp.MustCompile("[+-]?([0-9]*[.])?[0-9]+")
+var floatRegex *regexp.Regexp = regexp.MustCompile("[+-]?([0-9]*[.])?[0-9]+")
 
-var binOperators = []string{
+var integerRegex *regexp.Regexp = regexp.MustCompile(`^-?\d+$`)
+
+var operators = []string{
 	"+", "-", "*", "/", "**", "%",
 	"and", "or", "not",
-	"==", "!=", ">", "<", "<=", ">=", 
-	"=", ":=",
+	"==", "!=", ">", "<", "<=", ">=",
+	"=", "v=",
 }
 
 const (
-	LeftParen TokenType = 1
+	LeftParen  TokenType = 1
 	RightParen TokenType = 2
 	Identifier TokenType = 3
-	String TokenType = 4
-	Number TokenType = 5
-	Indent TokenType = 6
-	Dedent TokenType = 7
-	BinOperator TokenType = 8
-	LineEnd TokenType = 9
+	String     TokenType = 4
+	Int        TokenType = 5
+	Float      TokenType = 6
+	Indent     TokenType = 7
+	Dedent     TokenType = 8
+	Operator   TokenType = 9
+	LineEnd    TokenType = 10
 )
 
 type Token struct {
-	Type TokenType
-	Line int
-	Col int // the column here is NOT the byte position, but rune pos
+	Type  TokenType
+	Line  int
+	Col   int // the column here is NOT the byte position, but rune pos
 	Value any
 }
 
 type Lexer struct {
-	reader bufio.Reader
-	line int
-	col int
-	curRune rune
-	runeSize int
-	numberRegex regexp.Regexp
+	reader       bufio.Reader
+	line         int
+	col          int
+	curRune      rune
+	runeSize     int
 	skipNextRead bool
-	indentStack []int
-	isEof bool
+	indentStack  []int
+	isEof        bool
 }
 
-
 func NewLexer(reader io.Reader) Lexer {
-	return Lexer {
-		reader: *bufio.NewReader(reader),
-		line: 1,
-		col: 0,
+	return Lexer{
+		reader:       *bufio.NewReader(reader),
+		line:         1,
+		col:          0,
 		skipNextRead: false,
-		isEof: false,
+		isEof:        false,
 	}
 }
 
-
 func (l *Lexer) newToken(tokentType TokenType, value any) Token {
-	return Token {
-		Type: tokentType,
-		Col: l.col,
-		Line: l.line,
+	return Token{
+		Type:  tokentType,
+		Col:   l.col,
+		Line:  l.line,
 		Value: value,
 	}
 }
@@ -108,7 +106,7 @@ func (l *Lexer) detectIndent() (*Token, *ParserError) {
 			indentLevel := l.getIndentLevel()
 			if level > indentLevel {
 				tok := l.newToken(Indent, 1)
-				l.indentStack = append(l.indentStack, level - indentLevel)
+				l.indentStack = append(l.indentStack, level-indentLevel)
 				return &tok, nil
 			}
 			if level < indentLevel {
@@ -116,10 +114,10 @@ func (l *Lexer) detectIndent() (*Token, *ParserError) {
 				dedents := 0
 				for l.getIndentLevel() > level {
 					dedents++
-					l.indentStack = l.indentStack[:len(l.indentStack) - 1]
+					l.indentStack = l.indentStack[:len(l.indentStack)-1]
 				}
 
-				tok := l.newToken(Dedent, dedents) 
+				tok := l.newToken(Dedent, dedents)
 				return &tok, nil
 			}
 			return nil, nil
@@ -158,16 +156,28 @@ func (l *Lexer) detectIdentifier() (*Token, *ParserError) {
 			value = value[:len(value)-1]
 
 			// Return a binary op token if the identifier is a binary operator
-			for _, op := range binOperators {
+			for _, op := range operators {
 				if op == value {
-					tok := l.newToken(BinOperator, value)
+					tok := l.newToken(Operator, value)
 					return &tok, nil
 				}
 			}
-			// TODO whether the identifier is a number
+
+			// Check if it's an int
+			if integerRegex.MatchString(value) {
+				tok := l.newToken(Int, value)
+				return &tok, nil
+			}
+
+			// Check if it's a float
+			if floatRegex.MatchString(value) {
+				tok := l.newToken(Float, value)
+				return &tok, nil
+			}
+
 			tok := l.newToken(Identifier, value)
 			return &tok, nil
-				
+
 		}
 		// continue reading
 		err := l.readRune()
@@ -179,9 +189,9 @@ func (l *Lexer) detectIdentifier() (*Token, *ParserError) {
 }
 
 func (l *Lexer) newError(err error) ParserError {
-	return ParserError {
-		Line: l.line,
-		Col: l.col,
+	return ParserError{
+		Line:  l.line,
+		Col:   l.col,
 		Error: err,
 	}
 }
@@ -189,7 +199,7 @@ func (l *Lexer) newError(err error) ParserError {
 func (l *Lexer) readRune() *ParserError {
 	if l.isEof {
 		return nil
-	}
+	
 	if l.skipNextRead {
 		l.skipNextRead = false
 		return nil
@@ -257,7 +267,7 @@ func (l *Lexer) Next() (*Token, *ParserError) {
 			return stringToken, nil
 		}
 
-		// Detect identifier (anything that is not a space and is not one of the tokens above). 
+		// Detect identifier (anything that is not a space and is not one of the tokens above).
 		// Convert it to either number or operator, depending on its value.
 		if l.curRune != ' ' && l.curRune != '\t' && l.curRune != '\n' {
 			identifierToken, err := l.detectIdentifier()

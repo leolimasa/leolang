@@ -1,3 +1,4 @@
+import
 html
     head
         script (src test)
@@ -6,12 +7,13 @@ html
     body
     	p (text "hello world!")
 
+import LE
 html LE
 INDENT head
-INDENT script (src test) LE
-INDENT do-something LE do-something else LE
-DEDENT body LE
-INDENT p (text "hello world!") LE
+INDENT script (src test)
+INDENT do-something LE do-something else
+DEDENT body
+INDENT p (text "hello world!")
 
 (html
 	(head
@@ -21,8 +23,8 @@ INDENT p (text "hello world!") LE
 		(body
 			(p (text "hello world")))
 
-if just LE -> add closing paren and open paren
-if LE IDENT -> do NOT add closing paren, add opening paren
-if DEDENT -> add extra closing paren
+if just LE -> add closing paren and open paren if another token comes
+if LE IDENT -> do NOT add closing paren, add opening paren if another token comes
+if DEDENT -> add as many closing parens as the dedent level
 		
 

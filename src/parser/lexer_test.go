@@ -27,7 +27,7 @@ dedent-again`
 	assert.Equal(t, "my-fun", token.Value)
 
 	token, _ = lexer.Next()
-	assert.Equal(t, BinOperator, token.Type)
+	assert.Equal(t, Operator, token.Type)
 	assert.Equal(t, "=", token.Value)
 
 	token, _ = lexer.Next()

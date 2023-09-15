@@ -1,63 +1,146 @@
-import "../test.leo" tst
+# ----------------------------------------
+# Std library
+# ----------------------------------------
 
-type-alias Name String
+Sizeable = trait T
+    len (Fn T Int)
 
-type TokenType
+Wrappable = trait T V
+    wrap (Fn V T)
+
+Unwrappable = trait T V
+    unwrap (Fn T (Fn V V))
+
+BareUnwrappable = trait T V
+    bare-unwrap (Fn T (Fn V T))
+
+Result = generic-type (K E)
+    Ok K
+    Error E
+
+implement Unwrappable Result
+    unwrap (value cb)
+        case value
+	    Ok value
+	        Ok (cb value)
+	    Err err
+	        err
+
+implement BareUnwrappable Result
+    bare-unwrap (value cb)
+        case value
+	    Ok value
+                cb value
+	    Err err
+	        err
+
+# ----------------------------------------
+# Actual code
+# ----------------------------------------
+
+Token = enum
     LeftParen
     RightParen
-    Identifier
+    Identifier String
     String
-    Number
-    Indent
-    Dedent
-    BinOperator
+    IntTok
+    FloatTok
+    Indent Int
+    Dedent Int
+    Operator String
     
 
-type Token
-    Token
-        type TokenType
-        line Int
-        col Int
-        value Int
+TokenPos = struct
+    token Token
+    line Int
+    col Int
 
 
-type Lexer
-    Lexer
-        line Int
-	col Int
-	rune-size Int
-	indent-level Int
+Lexer = struct
+    line Int
+    col Int
+    cur-rune Rune
+    skip-next-read Bool
+    indent-stack (List Int)
+    is-eof Bool
 
+
+# Example of generic type
+SomeGenericType = generic T
+    type
+	value T
+
+operators = list
+    "+" "-" "*" "/" "**" "%"
+    "and" "or" "not"
+    "==" "!=" ">" "<" "<=" ">="
+    "=" "v="
 
 :: Fn io.Reader Lexer
 new-lexer = fn (reader)
     Lexer
-        reader (bufio.new-reader reader)
+        reader ((bufio new-reader) reader)
 	line 1
 	col 0
+	skip-next-read False
+	is-eof False
 
-:: Fn Lexer TokenType String Token
-new-token = fn (lexer token-type value)
+:: Fn Lexer Token String TokenPos
+new-token-pos = fn (lexer token value)
     Token
-        type token-type
+        token token
 	line lexer.line
 	col lexer.col
-	value value
+
+get-indent-level = fn (indent-stack) (reduce (fn-ref +) indent-stack)
+
+calculate-dedent = fn (indent-stack level dedents)
+    if (get-indent-level indent-stack <= level)
+        return (tuple indent-stack level)
+    
+
+
+detect-indent = fn (lexer level)
+    lexer v= (read-rune lexer) unwrap-bare
+
+    # Empty line. Ignore.
+    if (lexer cur-rune == '\n')
+        lexer line = lexer line + 1
+        return (Ok (None lexer))
+
+    # Check if we reached the end of the indentation
+    if (lexer cur-rune != ' ' or lexer is-eof)
+
+    	lexer skip-next-read = true
+	indent-level = get-indent-level (lexer indent-stack)
+
+	if (level > indent-level)
+	    lexer indent-stack = append 
+	    	lexer indent-stack 
+		level - indent-level
+	    return (Ok ((Indent 1) lexer))
+
+	if (level < indent-level)
+	    dedents = calculate-dedent lexer.indent-stack 0
+
+    detect-indent lexer (level + 1)
+	    
+    
 
 :: Fn Lexer 
     Result 
         Optional Token
         LexerError
 process-character = fn (lexer)
-    rune = use (try (lexer.reader.read-rune))
+    rune v= unwrap (lexer reader read-rune)
     if (rune == '\n')
-    	lexer = set lexer.col 0
-	lexer = set lexer.line (lexer.line + 1)
-    
+    	lexer col = 0
+	lexer line = (lexer line) + 1
+
 
 :: Fn Lexer (Result Token LexerError)
 next = fn (lexer)
-    token = use (try (process-character lexer))
+    token v= unwrap (process-character lexer)
     switch token
 	case (Ok t)
 	    Ok token
