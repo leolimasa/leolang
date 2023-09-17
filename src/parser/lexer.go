@@ -37,9 +37,6 @@ const (
 	Dedent     TokenType = 8
 	Operator   TokenType = 9
 	LineEnd    TokenType = 10
-	If         TokenType = 11
-	Then       TokenType = 12
-	Else       TokenType = 13
 )
 
 type Token struct {
@@ -175,21 +172,6 @@ func (l *Lexer) detectIdentifier() (*Token, *ParserError) {
 			// Check if it's a float
 			if floatRegex.MatchString(value) {
 				tok := l.newToken(Float, value)
-				return &tok, nil
-			}
-
-			if value == "if" {
-				tok := l.newToken(If, nil)
-				return &tok, nil
-			}
-
-			if value == "then" {
-				tok := l.newToken(Then, nil)
-				return &tok, nil
-			}
-
-			if value == "else" {
-				tok := l.newToken(Else, nil)
 				return &tok, nil
 			}
 

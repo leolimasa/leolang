@@ -77,12 +77,12 @@ are declared with `::` form, and inferenced if not present. Always start with up
 my-fun = fn (a b) (a + b)
 ```
 
-Unions
+Enums
 
 ```
-union Employee
-    Admin (name String) (salary Int)
-    FrontLine (salary Int)
+Employee = enum Employee
+    Admin String Int
+    FrontLine Int
 ``` 
 
 Using types
@@ -101,25 +101,25 @@ new-admin = fn (adm-name adm-salary)
     salary adm-salary
 ```
 
-## Callback operator
+## Wrap operator
 
 ```
 user-name = fn url
-  user v= await get-user
-  user.name 
+  user v= get-user unwrap
+  user name 
 ```
 
 is equivalent to
 
 ```
 user-name = fn url
-  await get-user (fn user user.name)
+  (get-user unwrap) (fn user user.name)
 ```
 
-## Functions
+## High Order Functions
 
-If an identifier is a function and it sits by itself on a line, you need to force calling it by surrounding in parameters (so it turns into a list).
-If a function is called with less parameters than it takes, then it is partially applied.
+Functions will be passed by value or by applying depending on the type of the
+receptor.
 
 ```
 
@@ -158,6 +158,10 @@ implement BareUnwrappable Result
 	        err
 ```
 
+## Trait Reflection
+
+
+
 ## Field accessors
 
 Use spaces
@@ -171,18 +175,24 @@ r = Reader
 (r read 10) unwrap
 ```
 
+## Generic reflection
+
+Generics are available within functions to create type safe versions.
+
 ## Symbolic Expressions
 
 * Group of symbols
 * The first symbol defines an action:
   * fn: function definition
   * trait: trait definition
+  * inherit
   * type: type definition
   * generic-type: generic type definition
   * implement: trait implementation
   * (function): function call
   * variable: value accessor. Any subsequent fields are field accessors.
     * Field accessors may be trait calls 
+  * if / else
 
 ## Features
 
