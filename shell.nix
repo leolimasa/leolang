@@ -3,6 +3,8 @@
 pkgs.mkShell {
   buildInputs = with pkgs; [
     go
+    llvmPackages_13.libllvm
+    llvmPackages_13.clangUseLLVM
   ];
 
   # The export LD_LIBRARY_PATH is needed because jupyter-lab

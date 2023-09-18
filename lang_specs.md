@@ -4,7 +4,7 @@
 #idea #language
 ```
 
-A TYPED LISP without the parenthesis. Focus on concurrency.
+A high-performance type-safe language with focus on readability, concurrency, and full stack development.
 
 ## Automatic parenthesis removal by indentation
 
@@ -42,6 +42,10 @@ Arithmetic: `+,-, * ,/, **, %`
 Callback: v=
 
 They are implemented as traits.
+
+## Pritive types
+
+The same as go lang, with maybe the exception of runes.
 
 ## Assignments
 
@@ -128,12 +132,16 @@ receptor.
 
 ## Traits
 
+If the `self` keyword is used in the function arg, then the struct will be passed to the the function.
+
 ```
 Unwrappable = trait T V
-    unwrap (Fn T (Fn V V))
+    :: Fn T (Fn V V)
+    unwrap
 
 BareUnwrappable = trait T V
-    bare-unwrap (Fn T (Fn V T))
+    :: Fn T (Fn V T)
+    bare-unwrap
 
 Result = generic-type (K E)
     Ok
@@ -142,7 +150,7 @@ Result = generic-type (K E)
         value E
 
 implement Unwrappable Result
-    unwrap (value cb)
+    unwrap = fn (value cb)
         case value
 	    Ok value
 	        Ok (cb value)
@@ -150,7 +158,7 @@ implement Unwrappable Result
 	        err
 
 implement BareUnwrappable Result
-    bare-unwrap (value cb)
+    bare-unwrap = fn (value cb)
         case value
 	    Ok value
                 cb value
@@ -158,13 +166,9 @@ implement BareUnwrappable Result
 	        err
 ```
 
-## Trait Reflection
-
-
-
 ## Field accessors
 
-Use spaces
+Use spaces.
 
 ```
 Reader = type
@@ -172,7 +176,7 @@ Reader = type
         read (Fn Bytes Result)
 
 r = Reader
-(r read 10) unwrap
+((r read) 10) unwrap
 ```
 
 ## Generic reflection

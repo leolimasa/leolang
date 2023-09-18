@@ -44,24 +44,24 @@ implement BareUnwrap Result
 Token = enum
     LeftParen
     RightParen
-    Identifier String
+    Identifier Text
     String
     IntTok
     FloatTok
-    Indent Int
-    Dedent Int
+    Indent Int32
+    Dedent Int32
     Operator String
     
 
 TokenPos = struct
     token Token
-    line Int
-    col Int
+    line Int32
+    col Int32
 
 
 Lexer = struct
-    line Int
-    col Int
+    line Int32
+    col Int32
     cur-rune Rune
     skip-next-read Bool
     indent-stack (List Int)
@@ -93,7 +93,9 @@ new-token-pos = fn (lexer token value)
 	col lexer.col
 
 
-get-indent-level = fn (indent-stack) (reduce (fn-ref +) indent-stack)
+sum = fn (lst) (reduce (fn (a b) (a + b)) lst) 
+
+get-indent-level = fn (indent-stack) (sum indent-stack)
 
 
 calculate-dedent = fn (indent-stack level dedents)
