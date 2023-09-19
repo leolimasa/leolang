@@ -46,6 +46,10 @@ type Token struct {
 	Value any
 }
 
+type ILexer interface {
+	Next() (*Token, *ParserError)
+}
+
 type Lexer struct {
 	reader       bufio.Reader
 	line         int

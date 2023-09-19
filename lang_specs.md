@@ -168,7 +168,8 @@ implement BareUnwrappable Result
 
 ## Field accessors
 
-Use spaces.
+Use spaces to separate fields. Wrap it in a list to invoke the function.
+Continuing after the function will drill down into subsequent fields / traits.
 
 ```
 Reader = type
@@ -176,7 +177,7 @@ Reader = type
         read (Fn Bytes Result)
 
 r = Reader
-((r read) 10) unwrap
+r (read 10) unwrap
 ```
 
 ## Macros

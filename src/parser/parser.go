@@ -11,10 +11,50 @@ type Parser struct {
 
 // Node stores a list of token or a single token.
 // This would ideally be a tagged union but go doesn't have that...
-type Node struct {
+type SymbolExpr struct {
 	Atom *Token
-	List []Node
+	List []SymbolExpr
 }
 
+func (p *Parser) Parse(lexer ILexer) (*SymbolExpr, *ParserError) {
+	curExpr := SymbolExpr {}
+	for {
+		token, err := lexer.Next()
+		if err != nil {
+			return nil, err
+		}
 
-func (p *Parser) Parse(lexer * o)
+		// EOF
+		if token == nil {
+			return &curExpr, nil
+		}
+	
+		// Start of a new sub expression
+		if token.Type == LeftParen {
+			subExpr, err := p.Parse(lexer)
+			if err != nil {
+				return nil, err
+			}
+			curExpr.List = append(curExpr.List, *subExpr)
+		}
+
+		// End of expression
+		if token.Type == RightParen {
+			return &curExpr, nil
+		}
+
+		// Atom
+		if token.Type == Identifier || token.Type == String || token.Type == Int || token.Type == Float || token.Type == Operator  {
+			curExpr.List = append(curExpr.List, SymbolExpr {Atom: token})
+		}
+	}
+}
+
+// func NormalizeIfs(expr SymbolExpr) SymbolExpr {
+// }
+//
+// func GroupOperators(expr SymbolExpr) SymbolExpr {
+// }
+//
+// func DesugarWrapOperator(expr SymbolExpr) SymbolExpr {
+// }

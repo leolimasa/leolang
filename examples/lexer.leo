@@ -135,7 +135,7 @@ process-character = fn (lexer)
     rune v= unwrap (lexer reader read-rune)
     if rune == '\n' then
     	lexer col = 0
-	lexer line = (lexer line) + 1
+	lexer line = lexer line + 1
 
 
 :: Fn Lexer (Result Token LexerError)
