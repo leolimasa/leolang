@@ -11,8 +11,8 @@ Wrap = trait T V
 Unwrap = trait T V
     unwrap (Fn T (Fn V V))
 
-BareUnwrap = trait T V
-    bare-unwrap (Fn T (Fn V T))
+UnwrapThenWrap = trait T V
+    unwrap-then-wrap (Fn T (Fn V T))
 
 Bool = enum False True
 
@@ -25,15 +25,15 @@ implement Unwrap Result
     unwrap (value cb)
         case value
 	    Ok value
-	        Ok (cb value)
+	        cb value
 	    Err err
 	        err
 
-implement BareUnwrap Result
+implement UnwrapThenWrap Result
     bare-unwrap (value cb)
         case value
 	    Ok value
-                cb value
+                Ok (cb value)
 	    Err err
 	        err
 
@@ -103,7 +103,7 @@ calculate-dedent = fn (indent-stack level dedents)
 
 
 detect-indent = fn (lexer level)
-    lexer v= (read-rune lexer) unwrap-bare
+    lexer v= (read-rune lexer) unwrap
 
     # Empty line. Ignore.
     if (lexer cur-rune == '\n')
@@ -138,7 +138,7 @@ process-character = fn (lexer)
 
 :: Fn Lexer (Result Token LexerError)
 next = fn (lexer)
-    token v= unwrap (process-character lexer)
+    token v= (process-character lexer) unwrap
     switch token
 	case (Ok t)
 	    Ok token

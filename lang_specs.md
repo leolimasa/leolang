@@ -175,9 +175,14 @@ r = Reader
 (r read 10) unwrap
 ```
 
-## Generic reflection
+## Macros
 
-Generics are available within functions to create type safe versions.
+A compile time function that takes in a SymbolExpr and returns a Result SymbolExpr E.
+
+## Package management
+
+* store a package.lock style file with checksums of all packages
+* the package.lock also stores an allow list of all system calls for security
 
 ## Symbolic Expressions
 
