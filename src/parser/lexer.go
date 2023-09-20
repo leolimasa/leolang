@@ -291,9 +291,17 @@ type LexerNoIndent struct {
 }
 
 func NewLexerNoIndent(lexer Lexer) LexerNoIndent {
+	firstToken := 
+		Token{
+			Type:  LeftParen,
+			Col:   0,
+			Line:  0,
+			Value: nil,
+		}
 	return LexerNoIndent {
 		lexer: lexer,
 		nextIsOpenParen: false,
+		tokenBuffer: []*Token{&firstToken},
 	}
 }
 

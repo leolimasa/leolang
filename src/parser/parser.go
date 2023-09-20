@@ -16,7 +16,7 @@ type SymbolExpr struct {
 	List []SymbolExpr
 }
 
-func (p *Parser) Parse(lexer ILexer) (*SymbolExpr, *ParserError) {
+func Parse(lexer ILexer) (*SymbolExpr, *ParserError) {
 	curExpr := SymbolExpr {}
 	for {
 		token, err := lexer.Next()
@@ -31,7 +31,7 @@ func (p *Parser) Parse(lexer ILexer) (*SymbolExpr, *ParserError) {
 	
 		// Start of a new sub expression
 		if token.Type == LeftParen {
-			subExpr, err := p.Parse(lexer)
+			subExpr, err := Parse(lexer)
 			if err != nil {
 				return nil, err
 			}
@@ -58,3 +58,6 @@ func (p *Parser) Parse(lexer ILexer) (*SymbolExpr, *ParserError) {
 //
 // func DesugarWrapOperator(expr SymbolExpr) SymbolExpr {
 // }
+
+// func RemoveSingleAtomLists(expr SymbolExpr)
+// 
