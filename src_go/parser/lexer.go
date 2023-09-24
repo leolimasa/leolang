@@ -39,10 +39,22 @@ const (
 	LineEnd    TokenType = 10
 )
 
+func Test() Loc {
+	return Loc {
+		Line: 0,
+		Col: 0,
+	}
+}
+
+type Loc struct {
+	Line int
+	Col int // the column here is NOT the byte position, but rune pos
+
+}
+
 type Token struct {
 	Type  TokenType
-	Line  int
-	Col   int // the column here is NOT the byte position, but rune pos
+	Loc   Loc
 	Value any
 }
 
@@ -74,8 +86,10 @@ func NewLexer(reader io.Reader) Lexer {
 func (l *Lexer) newToken(tokentType TokenType, value any) Token {
 	return Token{
 		Type:  tokentType,
-		Col:   l.col,
-		Line:  l.line,
+		Loc: Loc {
+			Col:   l.col,
+			Line:  l.line,
+		},
 		Value: value,
 	}
 }
@@ -294,8 +308,7 @@ func NewLexerNoIndent(lexer Lexer) LexerNoIndent {
 	firstToken := 
 		Token{
 			Type:  LeftParen,
-			Col:   0,
-			Line:  0,
+			Loc: Loc { Col: 0, Line: 0},
 			Value: nil,
 		}
 	return LexerNoIndent {

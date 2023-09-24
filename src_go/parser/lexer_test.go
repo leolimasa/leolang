@@ -65,7 +65,7 @@ dedent-again`
 	token, _ = lexer.Next()
 	assert.Equal(t, Identifier, token.Type)
 	assert.Equal(t, "map", token.Value)
-	assert.Equal(t, 4, token.Line)
+	assert.Equal(t, 4, token.Loc.Line)
 
 	token, _ = lexer.Next()
 	assert.Equal(t, Indent, token.Type)
