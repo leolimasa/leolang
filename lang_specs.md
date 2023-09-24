@@ -122,13 +122,30 @@ user-name = fn url
 
 ## High Order Functions
 
-Functions will be passed by value or by applying depending on the type of the
-receptor.
+
+The problem: if a function with no arguments returns a function, how do we know to execute it, or pass it as a high order function?
+
+Example:
 
 ```
+# Is this a function call? Or does it return a function?
+call-callback = fn (cb) (cb)
+```
 
+Solution 1: always apply by default, unless using `ref` <- this is the more readable and prevents point-free abuse.
 
 ```
+# This is definitelly a function call
+call-callback = fn (cb) cb
+
+# Returns a function referenced by cb
+call-callback = fn (cb) (ref cb)
+```
+
+in this case, `ref` is a trait of any type.
+
+Solution 2: use an operator, like `&cb`
+Solution 3: make function application explicit by changing the syntax - only apply it when it's a member of a list.
 
 ## Traits
 
@@ -203,6 +220,16 @@ A compile time function that takes in a SymbolExpr and returns a Result SymbolEx
   * variable: value accessor. Any subsequent fields are field accessors.
     * Field accessors may be trait calls 
   * if / else
+
+## Memory model
+
+* idea: everything is immutable. Pass it as references (move semantics), until that reference has to refer to 
+  more than one location. When that happens, create a persistent data structure.
+  
+## Strings
+
+* Use the `raw-str` form for raw strings
+* Use the `template-str` form for template strings
 
 ## Features
 

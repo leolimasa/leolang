@@ -3,6 +3,7 @@
 pkgs.mkShell {
   buildInputs = with pkgs; [
     go
+    rustc
     llvmPackages_13.libllvm
     llvmPackages_13.clangUseLLVM
   ];
