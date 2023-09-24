@@ -97,7 +97,6 @@ sum = fn (lst) (reduce (fn (a b) (a + b)) lst)
 
 get-indent-level = fn (indent-stack) (sum indent-stack)
 
-
 calculate-dedent = fn (indent-stack level dedents)
     if (get-indent-level indent-stack <= level)
         return (tuple indent-stack level)
@@ -109,13 +108,13 @@ detect-indent = fn (lexer level)
 
     # Empty line. Ignore.
     if (lexer cur-rune == '\n')
-        lexer line = lexer line + 1
+        lexer = lexer (line (lexer line + 1))
         return (Ok (tuple None lexer))
 
     # Check if we reached the end of the indentation
     if (lexer cur-rune != ' ' or lexer is-eof)
 
-    	lexer skip-next-read = true
+    	lexer = lexer (skip-next-read true)
 	indent-level = get-indent-level (lexer indent-stack)
 
 	if (level > indent-level)
@@ -134,9 +133,9 @@ detect-indent = fn (lexer level)
 process-character = fn (lexer)
     rune v= unwrap (lexer reader read-rune)
     if rune == '\n' then
-    	lexer col = 0
-	lexer line = lexer line + 1
-
+    	lexer = lexer
+	    col 0
+	    line (lexer line + 1)
 
 :: Fn Lexer (Result Token LexerError)
 next = fn (lexer)

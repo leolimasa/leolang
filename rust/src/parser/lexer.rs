@@ -1,13 +1,13 @@
 use regex::Regex;
 use regex_macro::regex;
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Loc {
     line: i32,
     col: i32
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum TokenType {
     OpenParen,
     CloseParen,
@@ -21,10 +21,10 @@ pub enum TokenType {
     LineEnd
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Token {
     pub token_type: TokenType,
-    loc: Loc
+    pub loc: Loc
 }
 
 pub struct Lexer {
@@ -46,8 +46,8 @@ pub enum LexerErrorType {
 
 #[derive(Debug)]
 pub struct LexerError {
-    error_type: LexerErrorType,
-    loc: Loc
+    pub error_type: LexerErrorType,
+    pub loc: Loc
 }
 
 pub fn new_lexer(stream: Box<dyn Iterator<Item = char>>) -> Lexer {
@@ -106,17 +106,25 @@ fn dedent_level(indent_stack: &mut Vec<i32>, level: i32, dedents: i32) -> i32 {
 
 fn detect_indent(lexer: &mut Lexer, level: i32) -> Option<Token> {
     next_char(lexer);
-    let c = lexer.cur_char?;
+    let is_empty_line = match lexer.cur_char {
+        Some(c) => c == '\n',
+        None => false
+    };
 
     // Empty line. Ignore.
-    if c == '\n' {
+    if is_empty_line {
         lexer.loc.line += 1;
         return None;
     }
 
+    let is_end = match lexer.cur_char {
+        Some(c) => c != ' ',
+        None => true
+    };
+
     // If we reached the end of the indentation, update the lexer
     // with the new indentation stack and emit the approriate token.
-    if c != ' ' {
+    if is_end {
         lexer.skip_next_read = true;
         let indent_level = get_indent_level(&lexer.indent_stack);
 
@@ -156,27 +164,34 @@ fn new_error(lexer: &Lexer, error_type: LexerErrorType) -> LexerError {
     }
 }
 
-fn detect_identifier(lexer: &mut Lexer, mut val: String) -> Result<Option<Token>, LexerError> {
-    let c = match lexer.cur_char {
-        Some(c) => c,
-        None => return Ok(None)
-    };
+fn detect_ident_or_literal(lexer: &mut Lexer, mut val: String) -> Result<Option<Token>, LexerError> {
 
     // Check whether we reached the end of the identifier
-    if c == ' ' || c == '\n' || c == '\r' || c == ')' {
+    let mut is_eof = false;
+    let is_end = match lexer.cur_char {
+        Some(c) => c == ' ' || c == '\n' || c == '\r' || c == ')',
+        None => {
+            is_eof = true;
+            true
+        }
+    };
+    
+    if is_end {
         // We consumed the end character for the identifier, so make sure
         // it gets processed for the following next call
         lexer.skip_next_read = true;
 
-        // remove last character from value
-        val.pop();
+        // remove last character from value (as long as it's not eof - eof is not a char)
+        if !is_eof {
+            val.pop();
+        }
         
         // return a binary op token if the identifier is a binary operator
         if lexer.operators.contains(&val) {
             return Ok(Some(new_token(lexer, TokenType::Operator(val))));
         }
 
-        // check for int
+        // check for int literal
         if lexer.int_regex.is_match(&val) {
             let number = val.parse();
             return
@@ -186,7 +201,7 @@ fn detect_identifier(lexer: &mut Lexer, mut val: String) -> Result<Option<Token>
                 } 
         }
 
-        // check for float
+        // check for float literal
         if lexer.float_regex.is_match(&val) {
             let number = val.parse();
             return
@@ -202,11 +217,11 @@ fn detect_identifier(lexer: &mut Lexer, mut val: String) -> Result<Option<Token>
 
     // continue reading
     next_char(lexer);
-    let c = match lexer.cur_char {
-        Some(c) => c,
-        None => return Ok(None)
-    };
-    detect_identifier(lexer, val + &c.to_string())
+    let mut v = val.clone();
+    if let Some(c) = lexer.cur_char {
+        v = val + &c.to_string();
+    }
+    detect_ident_or_literal(lexer, v)
 }
 
 impl Iterator for Lexer {
@@ -224,6 +239,7 @@ impl Iterator for Lexer {
             if let Some(tok) = indent_token {
                 return Some(Ok(tok));
             }
+            return Some(Ok(new_token(self, TokenType::LineEnd)));
         } 
 
         // detect parens
@@ -242,10 +258,10 @@ impl Iterator for Lexer {
             }
         }
 
-        // detect identifier - anything that's not a space and none of the
-        // tokens above.
+        // detect identifier or literals - anything that's not a space and none 
+        // of the tokens above.
         if c != ' ' && c != '\t' && c != '\n' {
-            let ident = detect_identifier(self, "".to_string());
+            let ident = detect_ident_or_literal(self, c.to_string());
             match ident {
                 Ok(opt) => match opt {
                     Some(t) => return Some(Ok(t)),
@@ -260,3 +276,106 @@ impl Iterator for Lexer {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_lexer() {
+        let program = r#"my-fun = fn (a b)
+                print "hello world"
+
+                map
+                    123 43.74
+                some-call
+                line-ends-here
+            dedented-all-the-way
+                indent-one-level
+                    indent-two-levels
+            dedent-again"#;
+        let mut lexer = new_lexer(Box::new(program.chars()));
+
+        let tok = lexer.next().unwrap().unwrap();
+        assert_eq!(TokenType::Identifier("my-fun".to_string()), tok.token_type); 
+
+        let tok = lexer.next().unwrap().unwrap();
+        assert_eq!(TokenType::Operator("=".to_string()), tok.token_type); 
+
+        let tok = lexer.next().unwrap().unwrap();
+        assert_eq!(TokenType::Identifier("fn".to_string()), tok.token_type); 
+
+        let tok = lexer.next().unwrap().unwrap();
+        assert_eq!(TokenType::OpenParen, tok.token_type); 
+
+        let tok = lexer.next().unwrap().unwrap();
+        assert_eq!(TokenType::Identifier("a".to_string()), tok.token_type); 
+
+        let tok = lexer.next().unwrap().unwrap();
+        assert_eq!(TokenType::Identifier("b".to_string()), tok.token_type); 
+
+        let tok = lexer.next().unwrap().unwrap();
+        assert_eq!(TokenType::CloseParen, tok.token_type); 
+
+        let tok = lexer.next().unwrap().unwrap();
+        assert_eq!(TokenType::Indent(1), tok.token_type); 
+
+        let tok = lexer.next().unwrap().unwrap();
+        assert_eq!(TokenType::Identifier("print".to_string()), tok.token_type); 
+
+        let tok = lexer.next().unwrap().unwrap();
+        assert_eq!(TokenType::StringLiteral("hello world".to_string()), tok.token_type); 
+
+        let tok = lexer.next().unwrap().unwrap();
+        assert_eq!(TokenType::LineEnd, tok.token_type); 
+
+        let tok = lexer.next().unwrap().unwrap();
+        assert_eq!(TokenType::Identifier("map".to_string()), tok.token_type); 
+
+        let tok = lexer.next().unwrap().unwrap();
+        assert_eq!(TokenType::Indent(1), tok.token_type); 
+
+        let tok = lexer.next().unwrap().unwrap();
+        assert_eq!(TokenType::IntLiteral(123), tok.token_type); 
+
+        let tok = lexer.next().unwrap().unwrap();
+        assert_eq!(TokenType::FloatLiteral(43.74), tok.token_type); 
+
+        let tok = lexer.next().unwrap().unwrap();
+        assert_eq!(TokenType::Dedent(1), tok.token_type); 
+
+        let tok = lexer.next().unwrap().unwrap();
+        assert_eq!(TokenType::Identifier("some-call".to_string()), tok.token_type); 
+        let tok = lexer.next().unwrap().unwrap();
+        assert_eq!(TokenType::LineEnd, tok.token_type); 
+
+        let tok = lexer.next().unwrap().unwrap();
+        assert_eq!(TokenType::Identifier("line-ends-here".to_string()), tok.token_type); 
+
+        let tok = lexer.next().unwrap().unwrap();
+        assert_eq!(TokenType::Dedent(1), tok.token_type); 
+
+        let tok = lexer.next().unwrap().unwrap();
+        assert_eq!(TokenType::Identifier("dedented-all-the-way".to_string()), tok.token_type); 
+
+        let tok = lexer.next().unwrap().unwrap();
+        assert_eq!(TokenType::Indent(1), tok.token_type); 
+
+        let tok = lexer.next().unwrap().unwrap();
+        assert_eq!(TokenType::Identifier("indent-one-level".to_string()), tok.token_type); 
+
+        let tok = lexer.next().unwrap().unwrap();
+        assert_eq!(TokenType::Indent(1), tok.token_type); 
+
+        let tok = lexer.next().unwrap().unwrap();
+        assert_eq!(TokenType::Identifier("indent-two-levels".to_string()), tok.token_type); 
+
+        let tok = lexer.next().unwrap().unwrap();
+        assert_eq!(TokenType::Dedent(2), tok.token_type); 
+
+        let tok = lexer.next().unwrap().unwrap();
+        assert_eq!(TokenType::Identifier("dedent-again".to_string()), tok.token_type); 
+
+        let tok = lexer.next();
+        assert!(tok.is_none());
+    }
+}

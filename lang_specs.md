@@ -231,6 +231,33 @@ A compile time function that takes in a SymbolExpr and returns a Result SymbolEx
 * Use the `raw-str` form for raw strings
 * Use the `template-str` form for template strings
 
+## Modules
+
+* import other modules using urls.
+* if alias is not provided, the last part of the path will be the module name (sans extension)
+* if folder is imported, then all modules in the folder will be available under the folder alias
+* relative folders that lie outside the root where the compiler command is being called cannot be included.
+
+```
+imports
+    "git://github.com/somepackage"
+    "../models/base.neon"
+    "std://io"
+    
+```
+
+* use the `public` form to export items from modules:
+
+```
+
+public
+    some-fun = fn (a b) (a + b)
+    some-other-fun = fn (b c) c
+
+```
+
+* use `submodules` 
+
 ## Features
 
 * Immutable by default. Mutable with `mut`
