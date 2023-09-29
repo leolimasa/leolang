@@ -276,6 +276,59 @@ impl Iterator for Lexer {
     }
 }
 
+struct LexerNoIndent {
+    lexer: Lexer,
+    token_buffer: Vec<Token>,
+    next_is_open_paren: bool
+}
+
+fn new_lexer_no_indent(mut lexer: Lexer) -> LexerNoIndent {
+    let first_token = Token {
+        token_type: TokenType::OpenParen,
+        loc: Loc { col:0, line:0},
+    };
+    LexerNoIndent { lexer, token_buffer: vec![first_token], next_is_open_paren: false }
+}
+
+impl Iterator for LexerNoIndent {
+    type Item = Result<Token, LexerError>;
+    fn next(&mut self) -> Option<Self::Item> {
+        // If there is a token in the token buffer, return that.
+        if let Some(t) = self.token_buffer.pop() {
+            return Some(Ok(t));
+        }
+
+        // Advance next token. Return if none or error.
+        let tok_res = self.lexer.next()?;
+        if let Err(tok_err) = tok_res {
+            return Some(Err(tok_err));
+        }
+        let Ok(tok) = tok_res;
+
+        // emit a open paren if the previous iteration told it to
+        if self.next_is_open_paren {
+            self.next_is_open_paren = false;
+            self.token_buffer.push(tok);
+            return Some(Ok(new_token(&self.lexer, TokenType::OpenParen)));
+        }
+
+        match tok.token_type {
+            TokenType::LineEnd => {
+                self.next_is_open_paren = true;
+                Some(Ok(new_token(&self.lexer, TokenType::CloseParen)))
+            },
+            TokenType::Indent(_) => {
+                self.next_is_open_paren = true;
+                self.next()
+            },
+            TokenType::Dedent(level) => {
+                // emit one dedent token right away and add any remaining
+                // dedents to the token buffer
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
