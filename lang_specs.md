@@ -146,6 +146,18 @@ in this case, `ref` is a trait of any type.
 
 Solution 2: use an operator, like `&cb`
 Solution 3: make function application explicit by changing the syntax - only apply it when it's a member of a list.
+Solution 4: always call empty functions with (), since they are Void -> t
+
+Solution 4:
+
+```
+# This is definitelly a function call
+call-callback = fn (cb) (cb ())
+
+# Returns a function referenced by cb
+call-callback = fn (cb) cb
+
+```
 
 ## Traits
 
