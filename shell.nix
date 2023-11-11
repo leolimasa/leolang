@@ -6,6 +6,7 @@ pkgs.mkShell {
     rustc
     llvmPackages_13.libllvm
     llvmPackages_13.clangUseLLVM
+    rustup
   ];
 
   # The export LD_LIBRARY_PATH is needed because jupyter-lab

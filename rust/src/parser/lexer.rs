@@ -278,54 +278,107 @@ impl Iterator for Lexer {
 
 struct LexerNoIndent {
     lexer: Lexer,
-    token_buffer: Vec<Token>,
-    next_is_open_paren: bool
+    line_buffer: Vec<Token>,
 }
 
-fn new_lexer_no_indent(mut lexer: Lexer) -> LexerNoIndent {
+fn new_lexer_no_indent(mut lexer: Lexer) -> LexerNoIndent { 
     let first_token = Token {
         token_type: TokenType::OpenParen,
         loc: Loc { col:0, line:0},
     };
-    LexerNoIndent { lexer, token_buffer: vec![first_token], next_is_open_paren: false }
+    LexerNoIndent { 
+        lexer, 
+        line_buffer: vec![first_token], 
+    }
 }
+
+enum LineEndType {
+    Indent,
+    Dedent(i32),
+    Eof,
+    RegularLineEnd
+}
+
+/**
+ * Reads lexer tokens until DEDENT, LE, or INDENT and returns
+ * the token used for line end
+ */
+fn fill_line_buffer(lexer_no_indent: &mut LexerNoIndent) -> Result<(LineEndType, Loc), LexerError> {
+    // Read next token or return an error
+    let opt_tok = lexer_no_indent.lexer.next();
+    if opt_tok.is_none() {
+        return Ok((LineEndType::Eof, lexer_no_indent.lexer.loc));
+    }
+    let Some(res_tok) = opt_tok;
+    if let Err(error) = res_tok {
+        return Err(error);
+    }
+
+    // if we reached the end of the line, then stop processing
+    let Ok(tok) = res_tok;
+    match tok.token_type {
+        TokenType::Indent(_) => return Ok((LineEndType::Indent, tok.loc)),
+        TokenType::Dedent(d) => return Ok((LineEndType::Dedent(d), tok.loc)),
+        TokenType::LineEnd => return Ok((LineEndType::RegularLineEnd, tok.loc)),
+        _ => {}
+    }
+
+    // Add the token to the buffer and recurse
+    lexer_no_indent.line_buffer.push(tok);
+    fill_line_buffer(lexer_no_indent)
+}
+
 
 impl Iterator for LexerNoIndent {
     type Item = Result<Token, LexerError>;
     fn next(&mut self) -> Option<Self::Item> {
-        // If there is a token in the token buffer, return that.
-        if let Some(t) = self.token_buffer.pop() {
-            return Some(Ok(t));
+        // drain line tokens if we have a line
+        if let Some(tok) = self.line_buffer.pop() {
+            return Some(Ok(tok));
         }
 
-        // Advance next token. Return if none or error.
-        let tok_res = self.lexer.next()?;
-        if let Err(tok_err) = tok_res {
-            return Some(Err(tok_err));
+        // read line into the line buffer
+        let line_end_res = fill_line_buffer(self);
+        if let Err(error) = line_end_res {
+            return Some(Err(error));
         }
-        let Ok(tok) = tok_res;
+        let Ok(line_end_tuple) = line_end_res;
+        let (line_end, line_end_loc) = line_end_tuple;
+        let first_token = self.line_buffer[0];
+        let last_token = self.line_buffer[self.line_buffer.len()-1];
 
-        // emit a open paren if the previous iteration told it to
-        if self.next_is_open_paren {
-            self.next_is_open_paren = false;
-            self.token_buffer.push(tok);
-            return Some(Ok(new_token(&self.lexer, TokenType::OpenParen)));
-        }
 
-        match tok.token_type {
-            TokenType::LineEnd => {
-                self.next_is_open_paren = true;
-                Some(Ok(new_token(&self.lexer, TokenType::CloseParen)))
-            },
-            TokenType::Indent(_) => {
-                self.next_is_open_paren = true;
-                self.next()
-            },
-            TokenType::Dedent(level) => {
-                // emit one dedent token right away and add any remaining
-                // dedents to the token buffer
-            }
+        // Auto group if a line doensn't start with an open paren,
+        // has more than one token, and doesn't end with INDENT
+        let ends_with_dedent = match line_end { LineEndType::Dedent(_) => true, _ => false};
+        let open_paren = Token {
+            token_type: TokenType::OpenParen,
+            loc: first_token.loc
+        };
+        if first_token.token_type != TokenType::OpenParen
+            && self.line_buffer.len() > 1 
+            && !ends_with_dedent {
+            self.line_buffer.insert(0, open_paren);
+            self.line_buffer.push(Token { token_type: TokenType::CloseParen, loc: line_end_loc});
         }
+        
+    
+        match line_end {
+            // Add open paren at the beginning of line if line is an indent
+            LineEndType::Indent => self.line_buffer.insert(0, open_paren),
+
+            // Add closing parens corresponding to dedents
+            LineEndType::Dedent(dedents) => {
+                let r = 0..dedents;
+                self.line_buffer.extend(r.map(|_| { Token { 
+                    token_type: TokenType::CloseParen,
+                    loc: line_end_loc
+                } }))},
+
+            _ => {}
+        };
+
+        self.next()
     }
 }
 
